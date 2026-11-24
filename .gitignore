@@ -1,0 +1,4 @@
+node_modules/
+*.cti.json
+!examples/*.cti.json
+.DS_Store

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>CTI Analyst: structured analytic techniques</title>
+  <link rel="icon" href="docs/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true" class="logo"><rect x="3" y="3" width="11" height="11" rx="2"/><rect x="18" y="3" width="11" height="11" rx="2" class="alt"/><rect x="3" y="18" width="11" height="11" rx="2" class="alt"/><rect x="18" y="18" width="11" height="11" rx="2"/></svg>
+      <div>
+        <strong>CTI Analyst</strong>
+        <span id="project-title" class="muted"></span>
+      </div>
+    </div>
+    <div class="actions">
+      <span id="tlp-badge" class="tlp"></span>
+      <span id="save-state" class="muted small" aria-live="polite"></span>
+      <button type="button" id="btn-new">New</button>
+      <button type="button" id="btn-example">Load example</button>
+      <button type="button" id="btn-import">Open…</button>
+      <button type="button" id="btn-export" class="primary">Save project</button>
+      <input type="file" id="file-input" accept="application/json,.json" hidden>
+    </div>
+  </header>
+  <div class="layout">
+    <nav id="nav" class="sidebar" aria-label="Techniques"></nav>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <script src="js/sat.js"></script>
+  <script src="js/example.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

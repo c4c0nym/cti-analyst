@@ -1,0 +1,13 @@
+{
+  "name": "cti-analyst",
+  "version": "1.0.0",
+  "description": "Structured analytic techniques for cyber threat intelligence: ACH, Key Assumptions Check, key drivers, multiple scenarios, indicators and deception detection.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
