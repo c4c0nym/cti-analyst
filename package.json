@@ -5,7 +5,7 @@
   "private": true,
   "license": "MIT",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test test/sat.test.js"
   },
   "engines": {
     "node": ">=18"
