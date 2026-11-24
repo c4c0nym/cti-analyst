@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <a href="https://c4c0nym.github.io/cti-analyst/"><strong>▶ Live demo</strong></a>
+</p>
+
+<p align="center">
   <img alt="No dependencies" src="https://img.shields.io/badge/dependencies-none-099197?style=flat-square">
   <img alt="Runs offline" src="https://img.shields.io/badge/runs-offline-00978d?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-c5a56e?style=flat-square">
@@ -50,7 +54,8 @@ key uncertainties with a collection requirement.
 
 ## Quick start
 
-There is nothing to install or build.
+Try it at **[c4c0nym.github.io/cti-analyst](https://c4c0nym.github.io/cti-analyst/)**, or run it
+locally. There is nothing to install or build.
 
 ```bash
 git clone https://github.com/c4c0nym/cti-analyst.git
