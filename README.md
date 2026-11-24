@@ -106,7 +106,7 @@ deserves a lower confidence:
 
 All organisations, groups and events in the example are invented.
 
-## How the scoring works
+## Scoring
 
 The scores structure the judgment. They don't replace it, and every number can be traced
 back to the inputs.
@@ -193,7 +193,7 @@ adapted for CTI; the books' text and case material are not included.
 
 ## Roadmap
 
-- [ ] Several analysts rating the same ACH matrix, with a view of where they disagree
+- [ ] Enable several analysts rating the same ACH matrix, with a view of where they disagree
 - [ ] Simple Scenarios and Cone of Plausibility
 - [ ] Argument Mapping and Structured Analogies
 - [ ] Export indicators as a STIX 2.1 note or a MISP event report
