@@ -261,3 +261,136 @@ test('key uncertainties collect from every technique', () => {
     assert.ok(origins.has(o), o);
   }
 });
+
+// ---------------------------------------------------------------------------------------------
+// Techniques added in 1.1
+// ---------------------------------------------------------------------------------------------
+test('Multiple Hypotheses Generator permutes only the components that vary', () => {
+  const mhg = {
+    components: {
+      who: { lead: 'Group A', alts: 'Group B\nInsider\n\nGroup B' }, // blank and duplicate lines ignored
+      what: { lead: 'changed the setpoint', alts: '' }, // a given
+      why: { lead: 'publicity', alts: 'sabotage' },
+    },
+    scores: { 'who=Insider|why=sabotage': 4 },
+  };
+  const g = S.mhgPermutations(mhg);
+  assert.equal(g.total, 6);
+  assert.deepEqual(g.givens.map(([c]) => c), ['what']);
+  assert.equal(g.permutations.filter((p) => p.isLead).length, 1);
+  assert.equal(g.permutations.find((p) => p.isLead).text, 'Who: Group A · Why: publicity');
+  const insider = g.permutations.find((p) => p.key === 'who=Insider|why=sabotage');
+  assert.equal(insider.score, 4);
+  assert.equal(S.mhgSentence(insider, g.givens), 'Insider changed the setpoint for sabotage');
+  assert.equal(S.mhgPermutations({}).total, 0);
+});
+
+test('Multiple Hypotheses Generator caps very large sets', () => {
+  const many = Array.from({ length: 30 }, (_, i) => `x${i}`).join('\n');
+  const g = S.mhgPermutations({ components: { who: { lead: 'a', alts: many }, why: { lead: 'b', alts: many } } });
+  assert.equal(g.total, 31 * 31);
+  assert.equal(g.permutations.length, S.MHG_LIMIT);
+  assert.ok(g.truncated);
+});
+
+test('timeline sorts by date and time and flags unusually long gaps', () => {
+  const ev = [
+    { id: 'c', date: '2026-03-03', time: '05:10', text: 'claim' },
+    { id: 'a', date: '2024-09-30', text: 'account left active' },
+    { id: 'u', date: '', text: 'undated' },
+    { id: 'b', date: '2026-03-03', time: '03:12', text: 'setpoint' },
+    { id: 'd', date: '2026-03-03', time: '06:00', text: 'report' },
+  ];
+  assert.deepEqual(S.timelineSorted(ev).map((e) => e.id), ['a', 'b', 'c', 'd', 'u']);
+  const gaps = S.timelineGaps(ev);
+  assert.equal(gaps.length, 1);
+  assert.equal(gaps[0].after.id, 'a');
+  assert.match(gaps[0].label, /months/);
+  assert.deepEqual(S.timelineGaps(ev.slice(0, 3)), []); // too few events to judge
+});
+
+test('cross-impact sums separate levers from reactive drivers', () => {
+  const drivers = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  const ci = S.crossImpactSummary(drivers, { a: { b: 2, c: -2 }, b: { c: 1 } });
+  assert.deepEqual(ci.active, { a: 4, b: 1, c: 0 });
+  assert.deepEqual(ci.passive, { a: 0, b: 2, c: 3 });
+  assert.equal(ci.roles.a, 'lever');
+  assert.equal(ci.roles.c, 'reactive');
+  assert.equal(S.crossImpactSummary(drivers, {}).roles.a, 'unrated');
+});
+
+test('Force Field Analysis totals and balance warnings', () => {
+  const ff = S.forceFieldSummary({ factors: [
+    { side: 'for', text: 'a', strength: 3 }, { side: 'for', text: 'b', strength: 2 }, { side: 'for', text: 'c', strength: 1 },
+    { side: 'against', text: 'd', strength: 5 }, { side: 'against', text: '', strength: 5 },
+  ] });
+  assert.equal(ff.forTotal, 6);
+  assert.equal(ff.againstTotal, 5); // the empty factor is ignored
+  assert.equal(ff.balance, 'for');
+  assert.equal(ff.notes.length, 2); // 3 vs 1 factors, and a strength-5 factor
+});
+
+test('Decision Matrix multiplies weights by points and checks the totals', () => {
+  // Beebe & Pherson: weights sum to 100, each criterion divides 10 points across the options.
+  const m = {
+    criteria: [{ id: 'k1', text: 'Protect people', weight: 60 }, { id: 'k2', text: 'Cost', weight: 40 }],
+    options: [{ id: 'o1', text: 'Evacuate' }, { id: 'o2', text: 'Stay' }],
+    values: { k1: { o1: 8, o2: 2 }, k2: { o1: 3, o2: 7 } },
+  };
+  const r = S.decisionMatrixScores(m);
+  assert.deepEqual(r.totals, { o1: 600, o2: 400 });
+  assert.equal(r.ranked[0].id, 'o1');
+  assert.deepEqual(r.warnings, []);
+  m.values.k2.o2 = 5;
+  m.criteria[1].weight = 30;
+  assert.equal(S.decisionMatrixScores(m).warnings.length, 2);
+});
+
+test('PCFF finds unfixed cons and unfaulted pros', () => {
+  const r = S.pcffSummary({ pros: [{ text: 'p', fault: '' }, { text: 'q', fault: 'f' }], cons: [{ text: 'c', fix: ' ' }, { text: '' }] });
+  assert.equal(r.unfaultedPros.length, 1);
+  assert.equal(r.unfixedCons.length, 1);
+  assert.equal(r.cons, 1);
+});
+
+test('key judgments use ICD 203 terms and flag weak wording', () => {
+  assert.equal(S.ICD203.length, 7);
+  assert.deepEqual(S.ICD203.map((b) => b.range), ['1-5%', '5-20%', '20-45%', '45-55%', '55-80%', '80-95%', '95-99%']);
+  const j = { text: 'The group carried it out.', likelihood: 'likely', confidence: 'moderate' };
+  assert.equal(S.judgmentSentence(j), 'Likely (55-80%), moderate confidence: The group carried it out.');
+  assert.deepEqual(S.judgmentChecks(j), []);
+  assert.ok(S.judgmentChecks({ text: 'The group may have done it.', likelihood: 'likely', confidence: 'low' }).some((t) => t.includes('Hedge')));
+  assert.ok(S.judgmentChecks({ text: 'x', likelihood: 'likely', confidence: 'high' }).some((t) => t.includes('basis')));
+  assert.equal(S.judgmentChecks({ text: 'x' }).length, 2);
+});
+
+test('Starbursting and Self-Critique feed the key uncertainties', () => {
+  const s = S.normalize({
+    starburst: { who: [{ text: 'Who knew the password?', support: 'none' }, { text: 'Who claimed it?', support: 'evidence' }] },
+    selfCritique: { sc3: { status: 'concern', note: 'One screenshot carries the ranking' } },
+  });
+  const sum = S.starburstSummary(s.starburst);
+  assert.equal(sum.total, 2);
+  assert.equal(sum.gaps.length, 1);
+  const ku = S.keyUncertainties(s);
+  assert.ok(ku.some((k) => k.origin === 'Starbursting' && k.text.includes('password')));
+  assert.ok(ku.some((k) => k.origin === 'Structured Self-Critique' && k.impact === 'H'));
+});
+
+test('the report includes the new techniques for the worked example', () => {
+  const md = S.buildReport(S.normalize(EXAMPLE));
+  for (const heading of ['## Key judgments', '## Getting started', '## Starbursting', '## Chronology', '### Multiple Hypotheses Generator',
+    '### Cross-impact', '## Structured Self-Critique', '## Force Field Analysis', '## SWOT', '## Pros-Cons-Faults-and-Fixes', '## Decision Matrix']) {
+    assert.ok(md.includes(heading), heading);
+  }
+  assert.ok(md.includes('**Almost certain (95-99%), high confidence:**'));
+});
+
+test('normalize keeps new sections safe when they are missing or malformed', () => {
+  const s = S.normalize({ starburst: 'x', mhg: { components: { who: { lead: 5 } } }, decision: { matrix: { criteria: 'bad' } }, timeline: [{}] });
+  assert.equal(s.mhg.components.who.lead, '5');
+  assert.deepEqual(s.starburst.who, []);
+  assert.deepEqual(s.decision.matrix.criteria, []);
+  assert.ok(s.timeline[0].id);
+  assert.equal(s.challenge.redhat.actor, '');
+});

@@ -118,5 +118,140 @@
     gaps: [
       { id: 'g1', text: 'Whether the former contractor\'s credentials have leaked', impact: 'H', requirement: 'Search stealer-log and breach data for the account; ask the contractor\'s employer.' },
     ],
+    start: {
+      prompt: 'An operator alarm at 03:15 on 3 March, followed two hours later by a public claim on a hacktivist Telegram channel.',
+      customer: 'The utility\'s CISO (containment and disclosure) and the regional sector ISAC (warning other utilities).',
+      importance: 'It would be the first confirmed manipulation of a dosing setpoint in the region. Other utilities with exposed HMIs need to know whether to act now.',
+      known: 'HMI and firewall logs, the operator\'s statement, the Telegram post, the ISAC\'s notes on the channel. An IR team is on site.',
+      deadline: 'Initial assessment to the CISO and ISAC within 48 hours.',
+    },
+    starburst: {
+      who: [
+        { id: 'q1', text: 'Who knew the former contractor\'s account still worked?', support: 'none' },
+        { id: 'q2', text: 'Who runs the Telegram channel, and since when?', support: 'indirect' },
+      ],
+      what: [
+        { id: 'q3', text: 'What else did the session touch besides the setpoint?', support: 'evidence' },
+      ],
+      how: [
+        { id: 'q4', text: 'How did the attacker get the VNC password: guessing, reuse or a leak?', support: 'none' },
+        { id: 'q5', text: 'How was the HMI found: mass scanning or targeting?', support: 'indirect' },
+      ],
+      when: [
+        { id: 'q6', text: 'When was the account first used after the contract ended?', support: 'none' },
+      ],
+      where: [
+        { id: 'q7', text: 'Where was the screenshot taken: our HMI, or a similar one elsewhere?', support: 'indirect' },
+      ],
+      why: [
+        { id: 'q8', text: 'Why change the setpoint to maximum, which an operator would notice at once?', support: 'indirect' },
+        { id: 'q9', text: 'Why post the claim two hours later rather than immediately?', support: 'none' },
+      ],
+    },
+    timeline: [
+      { id: 't1', date: '2024-09-30', time: '', text: 'Contractor\'s engagement ends; HMI account not disabled', source: 'HR records', confidence: 'H' },
+      { id: 't2', date: '2026-02-10', time: '', text: 'ISAC reports two of the channel\'s claims as fabricated', source: 'Sector ISAC', confidence: 'M' },
+      { id: 't3', date: '2026-02-27', time: '14:00', text: 'First connections to VNC from commercial VPN ranges', source: 'Firewall log', confidence: 'H' },
+      { id: 't4', date: '2026-03-03', time: '03:08', text: 'VNC login with the former contractor\'s account', source: 'HMI event log', confidence: 'H' },
+      { id: 't5', date: '2026-03-03', time: '03:12', text: 'Dosing setpoint raised to maximum', source: 'HMI event log', confidence: 'H' },
+      { id: 't6', date: '2026-03-03', time: '03:32', text: 'Operator reverts the setpoint and disconnects VNC', source: 'Operator statement', confidence: 'H' },
+      { id: 't7', date: '2026-03-03', time: '05:10', text: 'Telegram channel posts HMI screenshot and claims the attack', source: 'Telegram channel', confidence: 'M' },
+      { id: 't8', date: '2026-03-06', time: '', text: 'IR team finds no persistence on the IT/OT boundary', source: 'IR team', confidence: 'M' },
+    ],
+    mhg: {
+      components: {
+        who: { lead: 'The hacktivist group that claimed it', alts: 'A state-sponsored group\nThe former contractor\nA criminal access broker' },
+        what: { lead: 'changed the dosing setpoint', alts: '' },
+        how: { lead: 'the internet-exposed VNC password', alts: 'the dormant contractor account' },
+        when: { lead: '', alts: '' },
+        where: { lead: '', alts: '' },
+        why: { lead: 'publicity', alts: 'signalling and intimidation\ntesting access for later use\na personal grievance' },
+      },
+      scores: {
+        'who=The hacktivist group that claimed it|how=the internet-exposed VNC password|why=publicity': 3,
+        'who=The hacktivist group that claimed it|how=the dormant contractor account|why=publicity': 3,
+        'who=A state-sponsored group|how=the dormant contractor account|why=testing access for later use': 3,
+        'who=A state-sponsored group|how=the dormant contractor account|why=signalling and intimidation': 2,
+        'who=The former contractor|how=the dormant contractor account|why=a personal grievance': 4,
+        'who=A criminal access broker|how=the dormant contractor account|why=testing access for later use': 3,
+        'who=The former contractor|how=the internet-exposed VNC password|why=publicity': 1,
+      },
+    },
+    crossImpact: {
+      d1: { d2: 0, d3: 0, d4: 1, d5: 1, d6: 1 },
+      d2: { d1: 1, d6: 1 },
+      d3: { d1: 2, d4: 1, d5: 2, d6: 2 },
+      d4: { d1: 1, d5: 1 },
+      d5: { d6: 1 },
+      d6: { d2: -1 },
+    },
+    decision: {
+      forceField: {
+        question: 'Should we publicly attribute the incident to the hacktivist group now?',
+        factors: [
+          { id: 'f1', side: 'for', text: 'The group has publicly claimed it, and the screenshot shows our HMI tags', strength: 3 },
+          { id: 'f2', side: 'for', text: 'Other utilities need a clear warning quickly', strength: 4 },
+          { id: 'f3', side: 'for', text: 'Media are already reporting the claim', strength: 2 },
+          { id: 'f4', side: 'against', text: 'The channel has fabricated claims before', strength: 4 },
+          { id: 'f5', side: 'against', text: 'The session used a dormant insider account nobody has explained', strength: 5 },
+          { id: 'f6', side: 'against', text: 'A wrong attribution would amplify a possible false flag', strength: 4 },
+        ],
+      },
+      swot: {
+        objective: 'Join the regional OT information-sharing pilot run by the sector ISAC.',
+        strengths: 'Good HMI and firewall logging\nAn operator who caught the change within 20 minutes',
+        weaknesses: 'No off-box log copy\nNo account lifecycle process for contractors',
+        opportunities: 'Early warning from other utilities\nShared indicator lists and analyst time',
+        threats: 'Sensitive details could leak from the pilot\nPersonas monitor public reporting as a feedback channel',
+        useS: 'Share our logs and timeline as a case study',
+        improveW: 'Ship HMI logs to the SIEM; review all OT accounts',
+        exploitO: 'Subscribe to the pilot\'s exposed-HMI alerts',
+        mitigateT: 'Share at TLP:AMBER; keep attribution assessments out of public channels',
+      },
+      pcff: {
+        action: 'Warn sector partners now that the claimed group targets exposed HMIs.',
+        pros: [
+          { id: 'p1', text: 'Partners can check their own exposure before a repeat', fault: 'The warning helps whoever the actor is; it does not need the attribution' },
+          { id: 'p2', text: 'Shows the ISAC is responsive', fault: '' },
+        ],
+        cons: [
+          { id: 'c1', text: 'If it was a false flag, we amplify the deception', fix: 'Warn about the technique (exposed VNC, dormant accounts), not the group' },
+          { id: 'c2', text: 'Could reveal that our logs are incomplete', fix: 'Share at TLP:AMBER with partners only' },
+        ],
+      },
+      matrix: {
+        question: 'Which remediation should we do first?',
+        criteria: [
+          { id: 'k1', text: 'Reduces the chance of a repeat', weight: 40 },
+          { id: 'k2', text: 'Speed to implement', weight: 30 },
+          { id: 'k3', text: 'Improves attribution next time', weight: 20 },
+          { id: 'k4', text: 'Low cost', weight: 10 },
+        ],
+        options: [
+          { id: 'o1', text: 'Remove VNC from the internet' },
+          { id: 'o2', text: 'Disable dormant accounts + MFA' },
+          { id: 'o3', text: 'Off-box logging' },
+        ],
+        values: {
+          k1: { o1: 5, o2: 4, o3: 1 },
+          k2: { o1: 5, o2: 3, o3: 2 },
+          k3: { o1: 1, o2: 2, o3: 7 },
+          k4: { o1: 5, o2: 3, o3: 2 },
+        },
+      },
+    },
+    judgments: [
+      { id: 'j1', text: 'The setpoint change was a deliberate human action through a remote session, not a malfunction.', likelihood: 'almost_certain', confidence: 'high', basis: 'HMI session log, vendor confirmation that the firmware bug cannot create session entries, and the operator\'s statement.' },
+      { id: 'j2', text: 'The group that claimed the attack carried it out.', likelihood: 'even', confidence: 'low', basis: 'The only link is the group\'s own claim; the dormant contractor account and the time-zone artefact are unexplained.' },
+      { id: 'j3', text: 'Another utility in the region will see a similar intrusion through exposed remote access within 12 months.', likelihood: 'likely', confidence: 'moderate', basis: 'Rising VNC scanning and the number of exposed HMIs in the sector.' },
+    ],
+    selfCritique: {
+      sc1: { status: 'ok', note: 'Six hypotheses, including insider, malfunction and false flag.' },
+      sc2: { status: 'concern', note: 'Nobody has checked whether the contractor credentials leaked.' },
+      sc3: { status: 'concern', note: 'The ranking hinges on the time-zone artefact in an actor-controlled screenshot.' },
+      sc5: { status: 'concern', note: 'High deception concern: the attribution evidence comes from the actor\'s own channel.' },
+      sc6: { status: 'ok', note: 'No persistence found; consistent with an opportunistic or insider action.' },
+      sc7: { status: 'concern', note: 'Risk of anchoring on the public claim.' },
+    },
   };
 });

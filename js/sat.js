@@ -480,6 +480,293 @@
   }
 
   // ---------------------------------------------------------------------------------------------
+  // Getting Started Checklist (Beebe & Pherson ch. 3)
+  // ---------------------------------------------------------------------------------------------
+  const GETTING_STARTED = [
+    ['prompt', 'What prompted the analysis?', 'An alert, a report, a claim, a customer request, a perceived change?'],
+    ['customer', 'Who is the customer and what do they need?', 'What decision will they make with it, and in what form do they need it?'],
+    ['importance', 'Why does it matter, and how can analysis help?', 'What is at stake if we get it wrong?'],
+    ['known', 'What do we already know, and what would answer the question?', 'Existing reporting, telemetry, earlier cases, experts to ask.'],
+    ['deadline', 'When is it needed?', 'A deadline shapes which techniques are realistic.'],
+  ];
+
+  // ---------------------------------------------------------------------------------------------
+  // Starbursting (Beebe & Pherson ch. 1, 9, 15)
+  // ---------------------------------------------------------------------------------------------
+  const STARBURST_POINTS = ['who', 'what', 'how', 'when', 'where', 'why'];
+  const STARBURST_SUPPORT = {
+    evidence: 'Evidence answers it',
+    indirect: 'Only indirect evidence or assumptions',
+    none: 'No evidence at all',
+  };
+
+  function starburstSummary(starburst = {}) {
+    const counts = { evidence: 0, indirect: 0, none: 0, open: 0 };
+    const gaps = [];
+    for (const p of STARBURST_POINTS) {
+      for (const q of arr(starburst[p])) {
+        if (!q.text) continue;
+        if (STARBURST_SUPPORT[q.support]) counts[q.support] += 1;
+        else counts.open += 1;
+        if (q.support === 'none') gaps.push({ point: p, text: q.text });
+      }
+    }
+    return { counts, gaps, total: counts.evidence + counts.indirect + counts.none + counts.open };
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Chronologies and Timelines (Beebe & Pherson ch. 2, 5, 7, 8)
+  // ---------------------------------------------------------------------------------------------
+  function eventTime(e) {
+    if (!e.date || !/^\d{4}-\d{2}-\d{2}$/.test(e.date)) return null;
+    const t = /^\d{2}:\d{2}$/.test(e.time || '') ? e.time : '00:00';
+    const ms = Date.parse(`${e.date}T${t}:00Z`);
+    return Number.isNaN(ms) ? null : ms;
+  }
+
+  /** Dated events in order, undated ones last (they still need a date). */
+  function timelineSorted(events) {
+    return [...events].sort((a, b) => {
+      const ta = eventTime(a);
+      const tb = eventTime(b);
+      if (ta === null && tb === null) return 0;
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      return ta - tb;
+    });
+  }
+
+  function humanDuration(ms) {
+    const h = ms / 3600000;
+    if (h < 48) return `${round(h, 1)} hours`;
+    const d = h / 24;
+    if (d < 60) return `${Math.round(d)} days`;
+    return `${round(d / 30.4, 1)} months`;
+  }
+
+  /**
+   * Unusually long quiet periods between events: at least three times the median interval.
+   * A gap is a question ("what happened here?"), not a finding.
+   */
+  function timelineGaps(events) {
+    const dated = timelineSorted(events).filter((e) => eventTime(e) !== null);
+    if (dated.length < 4) return [];
+    const steps = [];
+    for (let i = 1; i < dated.length; i += 1) {
+      steps.push({ after: dated[i - 1], before: dated[i], ms: eventTime(dated[i]) - eventTime(dated[i - 1]) });
+    }
+    const sorted = steps.map((s) => s.ms).sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.max(median * 3, 3600000);
+    return steps.filter((s) => s.ms >= threshold).map((s) => ({ ...s, label: humanDuration(s.ms) }));
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Multiple Hypotheses Generator (Beebe & Pherson ch. 7, 9, 10, 11)
+  // ---------------------------------------------------------------------------------------------
+  const MHG_COMPONENTS = ['who', 'what', 'how', 'when', 'where', 'why'];
+  const MHG_LIMIT = 200;
+
+  function mhgOptions(component = {}) {
+    const alts = str(component.alts).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+    const lead = str(component.lead).trim();
+    return [...new Set([lead, ...alts].filter(Boolean))];
+  }
+
+  /**
+   * Every combination of the alternatives for each component. Components with a single value
+   * are "givens" (the same in every hypothesis) and are left out of the permutations.
+   */
+  function mhgPermutations(mhg = {}) {
+    const comps = obj(mhg.components);
+    const varying = MHG_COMPONENTS.map((c) => [c, mhgOptions(comps[c])]).filter(([, opts]) => opts.length > 1);
+    const givens = MHG_COMPONENTS.map((c) => [c, mhgOptions(comps[c])]).filter(([, opts]) => opts.length === 1);
+    if (!varying.length) return { permutations: [], givens, total: 0, truncated: false };
+    const total = varying.reduce((n, [, opts]) => n * opts.length, 1);
+    const out = [];
+    const walk = (i, parts) => {
+      if (out.length >= MHG_LIMIT) return;
+      if (i === varying.length) {
+        const key = varying.map(([c]) => `${c}=${parts[c]}`).join('|');
+        const isLead = varying.every(([c, opts]) => parts[c] === opts[0] && str(comps[c].lead).trim() === opts[0]);
+        const score = Number(obj(mhg.scores)[key]) || 0;
+        out.push({ key, parts: { ...parts }, isLead, score, text: varying.map(([c]) => `${c[0].toUpperCase()}${c.slice(1)}: ${parts[c]}`).join(' · ') });
+        return;
+      }
+      const [c, opts] = varying[i];
+      for (const o of opts) walk(i + 1, { ...parts, [c]: o });
+    };
+    walk(0, {});
+    return { permutations: out, givens, total, truncated: total > out.length };
+  }
+
+  /** Turn a permutation into a hypothesis sentence for the ACH matrix. */
+  function mhgSentence(perm, givens = []) {
+    const p = { ...Object.fromEntries(givens.map(([c, o]) => [c, o[0]])), ...perm.parts };
+    const bits = [p.who, p.what, p.how && `via ${p.how}`, p.where && `at ${p.where}`, p.when && `(${p.when})`, p.why && `for ${p.why}`];
+    return bits.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Cross-Impact Matrix (Heuer & Pherson): how each driver pushes the others
+  // ---------------------------------------------------------------------------------------------
+  const IMPACT_VALUES = [[2, '++'], [1, '+'], [0, '0'], [-1, '−'], [-2, '−−']];
+
+  /**
+   * Active sum = how strongly a driver influences the others (row); passive sum = how strongly it is
+   * influenced (column). Drivers that influence much and are influenced little are levers; ones
+   * that mostly react make good indicators.
+   */
+  function crossImpactSummary(drivers, matrix = {}) {
+    const ids = drivers.map((d) => d.id);
+    const active = Object.fromEntries(ids.map((id) => [id, 0]));
+    const passive = Object.fromEntries(ids.map((id) => [id, 0]));
+    let filled = 0;
+    for (const r of ids) {
+      for (const c of ids) {
+        if (r === c) continue;
+        const v = Number(obj(matrix[r])[c]) || 0;
+        if (v) filled += 1;
+        active[r] += Math.abs(v);
+        passive[c] += Math.abs(v);
+      }
+    }
+    const med = (vals) => { const s = [...vals].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : 0; };
+    const ma = med(Object.values(active));
+    const mp = med(Object.values(passive));
+    const roles = {};
+    for (const id of ids) {
+      const hiA = active[id] > ma;
+      const hiP = passive[id] > mp;
+      roles[id] = !filled ? 'unrated' : hiA && !hiP ? 'lever' : hiA && hiP ? 'relay' : !hiA && hiP ? 'reactive' : 'buffer';
+    }
+    return { active, passive, roles, filled };
+  }
+
+  const CROSS_IMPACT_ROLES = {
+    lever: { label: 'Lever', hint: 'Drives the others but is little affected: a strong scenario axis or point of intervention.' },
+    relay: { label: 'Relay', hint: 'Drives and is driven: changes here ripple through the system and can amplify.' },
+    reactive: { label: 'Reactive', hint: 'Mostly affected by the others: a good indicator that the system is moving.' },
+    buffer: { label: 'Buffer', hint: 'Weakly connected: changes here stay local.' },
+    unrated: { label: 'Not rated', hint: '' },
+  };
+
+  // ---------------------------------------------------------------------------------------------
+  // Decision support: Force Field Analysis, SWOT, Pros-Cons-Faults-and-Fixes, Decision Matrix
+  // (Beebe & Pherson ch. 4, 6, 10, 17)
+  // ---------------------------------------------------------------------------------------------
+  function forceFieldSummary(ff = {}) {
+    const factors = arr(ff.factors).filter((f) => f.text);
+    const side = (s) => factors.filter((f) => f.side === s);
+    const total = (list) => list.reduce((n, f) => n + (Number(f.strength) || 0), 0);
+    const forList = side('for');
+    const againstList = side('against');
+    const forTotal = total(forList);
+    const againstTotal = total(againstList);
+    const notes = [];
+    const nf = forList.length;
+    const na = againstList.length;
+    if (nf && na && Math.max(nf, na) >= 2 * Math.min(nf, na)) {
+      notes.push('One side has at least twice as many factors as the other. Totals partly reflect how many factors were listed, so balance the lists before comparing them.');
+    }
+    if (factors.some((f) => Number(f.strength) === 5)) {
+      notes.push('A single strength-5 factor can be decisive on its own (e.g. a confession or a verified log). Discuss it separately from the totals.');
+    }
+    const balance = forTotal === againstTotal ? 'balanced' : forTotal > againstTotal ? 'for' : 'against';
+    return { forTotal, againstTotal, forCount: nf, againstCount: na, balance, notes };
+  }
+
+  function pcffSummary(pcff = {}) {
+    const pros = arr(pcff.pros).filter((p) => p.text);
+    const cons = arr(pcff.cons).filter((c) => c.text);
+    return {
+      pros: pros.length,
+      cons: cons.length,
+      unfixedCons: cons.filter((c) => !str(c.fix).trim()),
+      unfaultedPros: pros.filter((p) => !str(p.fault).trim()),
+    };
+  }
+
+  /** Weighted score per option: sum over criteria of weight x value (Beebe & Pherson ch. 17). */
+  function decisionMatrixScores(m = {}) {
+    const criteria = arr(m.criteria);
+    const options = arr(m.options);
+    const values = obj(m.values);
+    const totals = Object.fromEntries(options.map((o) => [o.id, 0]));
+    const warnings = [];
+    const weightSum = criteria.reduce((n, c) => n + (Number(c.weight) || 0), 0);
+    if (criteria.length && weightSum !== 100) warnings.push(`The criterion weights add up to ${weightSum}, not 100.`);
+    for (const c of criteria) {
+      let rowSum = 0;
+      for (const o of options) {
+        const v = Number(obj(values[c.id])[o.id]) || 0;
+        rowSum += v;
+        totals[o.id] += (Number(c.weight) || 0) * v;
+      }
+      if (options.length && rowSum !== 10) warnings.push(`"${truncate(c.text, 40) || 'A criterion'}" distributes ${rowSum} points across the options instead of 10.`);
+    }
+    const ranked = options.map((o) => ({ id: o.id, text: o.text, total: totals[o.id] })).sort((a, b) => b.total - a.total);
+    return { totals, ranked, weightSum, warnings };
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Key judgments in estimative language (ODNI ICD 203)
+  // ---------------------------------------------------------------------------------------------
+  const ICD203 = [
+    { key: 'almost_no_chance', term: 'Almost no chance', alt: 'Remote', range: '1-5%' },
+    { key: 'very_unlikely', term: 'Very unlikely', alt: 'Highly improbable', range: '5-20%' },
+    { key: 'unlikely', term: 'Unlikely', alt: 'Improbable', range: '20-45%' },
+    { key: 'even', term: 'Roughly even chance', alt: 'Roughly even odds', range: '45-55%' },
+    { key: 'likely', term: 'Likely', alt: 'Probable', range: '55-80%' },
+    { key: 'very_likely', term: 'Very likely', alt: 'Highly probable', range: '80-95%' },
+    { key: 'almost_certain', term: 'Almost certain', alt: 'Nearly certain', range: '95-99%' },
+  ];
+  const CONFIDENCE = { low: 'Low', moderate: 'Moderate', high: 'High' };
+  const HEDGES = /\b(may|might|could|possibly|perhaps|potentially|probably|it is possible|cannot be ruled out|we believe)\b/i;
+
+  function judgmentLabel(j) {
+    const band = ICD203.find((b) => b.key === j.likelihood);
+    const conf = CONFIDENCE[j.confidence];
+    const parts = [];
+    if (band) parts.push(`${band.term} (${band.range})`);
+    if (conf) parts.push(`${conf.toLowerCase()} confidence`);
+    return parts.join(', ');
+  }
+
+  function judgmentSentence(j) {
+    const label = judgmentLabel(j);
+    return `${label ? `${label}: ` : ''}${str(j.text).trim()}`;
+  }
+
+  function judgmentChecks(j) {
+    const issues = [];
+    if (!j.text) return issues;
+    if (!j.likelihood) issues.push('Give it a likelihood term so readers know how probable you think it is.');
+    if (!j.confidence) issues.push('State your confidence: it describes the quality of the evidence and reasoning, not the probability.');
+    if (HEDGES.test(j.text)) issues.push('Hedge words ("may", "could", "possibly"…) blur the likelihood. Let the estimative term carry it instead.');
+    if (j.confidence === 'high' && !str(j.basis).trim()) issues.push('High confidence needs a stated basis.');
+    if ((j.likelihood === 'almost_certain' || j.likelihood === 'almost_no_chance') && j.confidence === 'low') {
+      issues.push('An extreme likelihood with low confidence is unusual. Check whether the evidence supports that probability.');
+    }
+    return issues;
+  }
+
+  // ---------------------------------------------------------------------------------------------
+  // Structured Self-Critique (Beebe & Pherson ch. 1, 2, 4; after Heuer & Pherson)
+  // ---------------------------------------------------------------------------------------------
+  const SELF_CRITIQUE = [
+    ['sc1', 'Alternative hypotheses', 'Have we considered the full set of alternative explanations, including the ones that contradict the consensus?'],
+    ['sc2', 'Key assumptions', 'Are the key assumptions explicit and supported? Do any need a caveat, and how much would the judgment change if one failed?'],
+    ['sc3', 'Critical evidence', 'Does the judgment rest on one critical item or one stream of reporting? What if it were wrong?'],
+    ['sc4', 'Anomalies', 'Is there contradictory or anomalous information that was overlooked or explained away?'],
+    ['sc5', 'Deception', 'Does anyone have motive, opportunity and means to deceive us?'],
+    ['sc6', 'Absence of evidence', 'Is something missing that we would expect to see, and does that affect the key judgment?'],
+    ['sc7', 'Pitfalls', 'Have mindset, confirmation bias, satisficing, premature closure, anchoring or a historical analogy ("this looks like group X") crept in?'],
+    ['sc8', 'Confidence', 'Given the answers above, should the key judgment or our confidence in it change?'],
+  ];
+  const SELF_CRITIQUE_STATUS = { ok: 'Holds up', concern: 'Concern' };
+
+  // ---------------------------------------------------------------------------------------------
   // Key uncertainties and collection requirements
   // ---------------------------------------------------------------------------------------------
   function keyUncertainties(state) {
@@ -510,6 +797,21 @@
           out.push({ origin: 'ACH: expected but not seen', text: `${h.text}: ${h.missing}`, impact: 'M',
             requirement: `Search for the missing evidence: ${h.missing}` });
         }
+      }
+    }
+    for (const g of starburstSummary(state.starburst).gaps) {
+      out.push({ origin: 'Starbursting', text: `${g.point[0].toUpperCase()}${g.point.slice(1)}? ${g.text}`, impact: 'M',
+        requirement: `No evidence answers this yet: ${g.text}` });
+    }
+    for (const g of timelineGaps(arr(state.timeline))) {
+      out.push({ origin: 'Chronology', text: `${g.label} without events between "${truncate(g.after.text, 50)}" and "${truncate(g.before.text, 50)}"`, impact: 'M',
+        requirement: 'Find out what happened in this period (logs, reporting, interviews), or confirm that nothing did.' });
+    }
+    for (const [id, title, question] of SELF_CRITIQUE) {
+      const a = obj(state.selfCritique)[id];
+      if (a && a.status === 'concern') {
+        out.push({ origin: 'Structured Self-Critique', text: `${title}: ${a.note || question}`, impact: 'H',
+          requirement: a.note ? `Resolve before publishing: ${a.note}` : `Resolve before publishing: ${question}` });
       }
     }
     for (const g of state.gaps || []) {
@@ -591,9 +893,30 @@
         whatif: { event: '', triggers: '', pathway: '', indicators: '', consequences: '' },
         hilp: { outcome: '', pathways: '', triggers: '', indicators: '', deflectors: '' },
         premortem: { failure: '', causes: '', checks: '' },
+        redhat: { actor: '', situation: '', questions: '', decision: '' },
       },
       gaps: [],
+      start: Object.fromEntries(GETTING_STARTED.map(([k]) => [k, ''])),
+      starburst: Object.fromEntries(STARBURST_POINTS.map((p) => [p, []])),
+      timeline: [],
+      mhg: { components: Object.fromEntries(MHG_COMPONENTS.map((c) => [c, { lead: '', alts: '' }])), scores: {} },
+      crossImpact: {},
+      decision: {
+        forceField: { question: '', factors: [] },
+        swot: { objective: '', strengths: '', weaknesses: '', opportunities: '', threats: '', useS: '', improveW: '', exploitO: '', mitigateT: '' },
+        pcff: { action: '', pros: [], cons: [] },
+        matrix: { question: '', criteria: [], options: [], values: {} },
+      },
+      judgments: [],
+      selfCritique: {},
     };
+  }
+
+  /** Copy only the known string fields of a flat object. */
+  function strings(template, source) {
+    const out = { ...template };
+    for (const k of Object.keys(template)) if (obj(source)[k] != null) out[k] = str(source[k]);
+    return out;
   }
 
   const arr = (v) => (Array.isArray(v) ? v : []);
@@ -627,6 +950,31 @@
       deception: { answers: obj(s.deception?.answers), notes: str(s.deception?.notes) },
       challenge,
       gaps: arr(s.gaps).map(withId('g')),
+      start: strings(base.start, s.start),
+      starburst: Object.fromEntries(STARBURST_POINTS.map((p) => [p, arr(obj(s.starburst)[p]).map(withId('q'))])),
+      timeline: arr(s.timeline).map(withId('t')),
+      mhg: {
+        components: Object.fromEntries(MHG_COMPONENTS.map((c) => [c, strings(base.mhg.components[c], obj(obj(s.mhg).components)[c])])),
+        scores: obj(obj(s.mhg).scores),
+      },
+      crossImpact: obj(s.crossImpact),
+      decision: {
+        forceField: { question: str(obj(obj(s.decision).forceField).question), factors: arr(obj(obj(s.decision).forceField).factors).map(withId('f')) },
+        swot: strings(base.decision.swot, obj(s.decision).swot),
+        pcff: {
+          action: str(obj(obj(s.decision).pcff).action),
+          pros: arr(obj(obj(s.decision).pcff).pros).map(withId('p')),
+          cons: arr(obj(obj(s.decision).pcff).cons).map(withId('c')),
+        },
+        matrix: {
+          question: str(obj(obj(s.decision).matrix).question),
+          criteria: arr(obj(obj(s.decision).matrix).criteria).map(withId('k')),
+          options: arr(obj(obj(s.decision).matrix).options).map(withId('o')),
+          values: obj(obj(obj(s.decision).matrix).values),
+        },
+      },
+      judgments: arr(s.judgments).map(withId('j')),
+      selfCritique: obj(s.selfCritique),
     };
   }
 
@@ -694,6 +1042,39 @@
     }
     if (m.analyticLine) out.push(`**Prevailing analytic line going in:** ${m.analyticLine}`, '');
 
+    const judgments = s.judgments.filter((j) => j.text);
+    if (judgments.length) {
+      out.push('## Key judgments', '');
+      for (const j of judgments) {
+        const label = judgmentLabel(j);
+        out.push(`- ${label ? `**${label}:** ` : ''}${j.text}${j.basis ? ` _Basis: ${j.basis}_` : ''}`);
+      }
+      out.push('', '_Likelihood terms follow ODNI ICD 203. Confidence describes the quality of the evidence and reasoning, not the probability._', '');
+    }
+
+    const started = GETTING_STARTED.filter(([k]) => s.start[k]);
+    if (started.length) {
+      out.push('## Getting started', '');
+      for (const [k, q] of started) out.push(`**${q}** ${s.start[k]}`, '');
+    }
+
+    const sb = starburstSummary(s.starburst);
+    if (sb.total) {
+      out.push('## Starbursting', '');
+      out.push(table(['', 'Question', 'Answered by'], STARBURST_POINTS.flatMap((p) => s.starburst[p].filter((q) => q.text)
+        .map((q) => [`${p[0].toUpperCase()}${p.slice(1)}?`, q.text, STARBURST_SUPPORT[q.support] || 'Not assessed']))));
+      out.push('');
+    }
+
+    if (s.timeline.length) {
+      out.push('## Chronology', '');
+      out.push(table(['When', 'Event', 'Source', 'Confidence'], timelineSorted(s.timeline)
+        .map((e) => [`${e.date || 'undated'}${e.time ? ` ${e.time}` : ''}`, e.text, e.source, LEVELS[e.confidence] || ''])));
+      out.push('');
+      for (const g of timelineGaps(s.timeline)) out.push(`- ⚠ ${g.label} with no recorded events between "${g.after.text}" and "${g.before.text}".`);
+      if (timelineGaps(s.timeline).length) out.push('');
+    }
+
     if (s.assumptions.length) {
       out.push('## Key Assumptions Check', '');
       out.push(table(['Assumption', 'Assessment', 'Impact if wrong', 'Commentary', 'What would change it'],
@@ -726,6 +1107,14 @@
         }
         out.push('');
       }
+      const gen = mhgPermutations(s.mhg);
+      const credible = gen.permutations.filter((p) => p.score >= 3).sort((a, b) => b.score - a.score);
+      if (gen.permutations.length) {
+        out.push('### Multiple Hypotheses Generator', '');
+        out.push(`${gen.total} permutations of the lead hypothesis were generated${gen.givens.length ? ` (given: ${gen.givens.map(([c, o]) => `${c} = ${o[0]}`).join(', ')})` : ''}. ${credible.length} scored 3 or higher for credibility:`, '');
+        for (const p of credible) out.push(`- ${p.score}/5: ${p.text}${p.isLead ? ' (lead hypothesis)' : ''}`);
+        out.push('');
+      }
       const missing = s.hypotheses.filter((h) => h.missing);
       if (missing.length) {
         out.push('### Expected but not seen', '');
@@ -750,6 +1139,13 @@
         [...s.drivers].sort((a, b) => b.impact * b.uncertainty - a.impact * a.uncertainty)
           .map((d) => [d.name, DRIVER_CATEGORIES[d.category] || '', `${d.low || '?'} ↔ ${d.high || '?'}`, d.impact, d.uncertainty, DRIVER_CLASSES[classifyDriver(d)].label])));
       out.push('');
+      const ci = crossImpactSummary(s.drivers, s.crossImpact);
+      if (ci.filled) {
+        out.push('### Cross-impact', '');
+        out.push(table(['Driver', 'Influences others', 'Influenced by others', 'Role'],
+          s.drivers.map((d) => [d.name, ci.active[d.id], ci.passive[d.id], CROSS_IMPACT_ROLES[ci.roles[d.id]].label])));
+        out.push('');
+      }
     }
 
     const scen = scenarioList(s.scenarios, s.drivers, s.scenarioDrivers);
@@ -798,6 +1194,65 @@
     block('What If? analysis', [['Assume this happened', ch.whatif.event], ['Triggers', ch.whatif.triggers], ['Pathway (thinking backwards)', ch.whatif.pathway], ['Indicators', ch.whatif.indicators], ['Consequences', ch.whatif.consequences]]);
     block('High-Impact/Low-Probability', [['Outcome', ch.hilp.outcome], ['Pathways', ch.hilp.pathways], ['Triggers', ch.hilp.triggers], ['Indicators', ch.hilp.indicators], ['What would deflect it', ch.hilp.deflectors]]);
     block('Premortem', [['We were wrong because', ch.premortem.failure], ['Possible causes', ch.premortem.causes], ['Checks we will do', ch.premortem.checks]]);
+    block('Red Hat analysis', [['Actor', ch.redhat.actor], ['Their situation as they see it', ch.redhat.situation], ['Questions they would ask', ch.redhat.questions], ['What they would decide', ch.redhat.decision]]);
+
+    const critique = SELF_CRITIQUE.filter(([id]) => obj(s.selfCritique[id]).status || obj(s.selfCritique[id]).note);
+    if (critique.length) {
+      out.push('## Structured Self-Critique', '');
+      out.push(table(['Check', 'Result', 'Notes'], critique.map(([id, title]) => [title, SELF_CRITIQUE_STATUS[s.selfCritique[id].status] || '', s.selfCritique[id].note])));
+      out.push('');
+    }
+
+    const ff = forceFieldSummary(s.decision.forceField);
+    if (ff.forCount + ff.againstCount) {
+      out.push('## Force Field Analysis', '');
+      if (s.decision.forceField.question) out.push(`**Question:** ${s.decision.forceField.question}`, '');
+      const factors = s.decision.forceField.factors.filter((f) => f.text);
+      out.push(table(['For', 'Strength', 'Against', 'Strength'], Array.from({ length: Math.max(ff.forCount, ff.againstCount) }, (_, i) => {
+        const a = factors.filter((f) => f.side === 'for')[i];
+        const b = factors.filter((f) => f.side === 'against')[i];
+        return [a?.text || '', a?.strength || '', b?.text || '', b?.strength || ''];
+      })));
+      out.push('', `**Total:** for ${ff.forTotal}, against ${ff.againstTotal}.`, '');
+      for (const n of ff.notes) out.push(`- ${n}`);
+      if (ff.notes.length) out.push('');
+    }
+
+    const sw = s.decision.swot;
+    if (['strengths', 'weaknesses', 'opportunities', 'threats'].some((k) => sw[k])) {
+      out.push('## SWOT', '');
+      if (sw.objective) out.push(`**Objective:** ${sw.objective}`, '');
+      out.push(table(['Strengths', 'Weaknesses', 'Opportunities', 'Threats'], [[sw.strengths, sw.weaknesses, sw.opportunities, sw.threats]]));
+      out.push('');
+      if (sw.useS || sw.improveW || sw.exploitO || sw.mitigateT) {
+        out.push(table(['Use strengths', 'Improve weaknesses', 'Exploit opportunities', 'Mitigate threats'], [[sw.useS, sw.improveW, sw.exploitO, sw.mitigateT]]));
+        out.push('');
+      }
+    }
+
+    const pc = s.decision.pcff;
+    if (pcffSummary(pc).pros + pcffSummary(pc).cons) {
+      out.push('## Pros-Cons-Faults-and-Fixes', '');
+      if (pc.action) out.push(`**Proposed action:** ${pc.action}`, '');
+      out.push(table(['Pro', 'Fault'], pc.pros.filter((p) => p.text).map((p) => [p.text, p.fault])));
+      out.push('');
+      out.push(table(['Con', 'Fix'], pc.cons.filter((c) => c.text).map((c) => [c.text, c.fix])));
+      out.push('');
+    }
+
+    const dm = s.decision.matrix;
+    if (dm.options.length && dm.criteria.length) {
+      const res = decisionMatrixScores(dm);
+      out.push('## Decision Matrix', '');
+      if (dm.question) out.push(`**Decision:** ${dm.question}`, '');
+      out.push(table(['Criterion', 'Weight', ...dm.options.map((o) => o.text)],
+        [...dm.criteria.map((c) => [c.text, c.weight, ...dm.options.map((o) => obj(dm.values[c.id])[o.id] ?? '')]),
+          ['**Total**', '', ...dm.options.map((o) => `**${res.totals[o.id]}**`)]]));
+      out.push('');
+      for (const w of res.warnings) out.push(`- ⚠ ${w}`);
+      if (res.warnings.length) out.push('');
+      out.push('_The numbers inform the decision; they do not make it._', '');
+    }
 
     const ku = keyUncertainties(s);
     if (ku.length) {
@@ -820,6 +1275,13 @@
     LIKELIHOOD, VALIDATOR_POINTS, INDICATOR_CRITERIA, INDICATOR_STATUS, validateIndicator, indicatorMomentum, indicatorFrame,
     DECEPTION_CHECKLIST, deceptionAssessment,
     keyUncertainties, analyticConfidence,
+    GETTING_STARTED, STARBURST_POINTS, STARBURST_SUPPORT, starburstSummary,
+    eventTime, timelineSorted, timelineGaps,
+    MHG_COMPONENTS, MHG_LIMIT, mhgOptions, mhgPermutations, mhgSentence,
+    IMPACT_VALUES, crossImpactSummary, CROSS_IMPACT_ROLES,
+    forceFieldSummary, pcffSummary, decisionMatrixScores,
+    ICD203, CONFIDENCE, judgmentLabel, judgmentSentence, judgmentChecks,
+    SELF_CRITIQUE, SELF_CRITIQUE_STATUS,
     TLP, emptyState, normalize, buildReport,
   };
 });
