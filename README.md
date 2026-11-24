@@ -2,7 +2,7 @@
   <img src="docs/icon.svg" alt="" width="72">
 </p>
 
-<h1 align="center">CTI Analyst</h1>
+<h1 align="center">Systematic analyst</h1>
 
 <p align="center">
   Structured analytic techniques for cyber threat intelligence, in one offline web page.
