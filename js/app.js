@@ -602,7 +602,8 @@
 
     if (gen.permutations.length) {
       const list = [...gen.permutations].sort((a, b) => b.score - a.score || Number(b.isLead) - Number(a.isLead));
-      card.append(h('div', { class: 'table-wrap' }, h('table', {},
+      // native append() would print the text "null" for absent parts, so drop them first
+      card.append(...[h('div', { class: 'table-wrap' }, h('table', {},
         h('thead', {}, h('tr', {}, ['Permutation', 'Credibility', ''].map((t) => h('th', {}, t)))),
         h('tbody', {}, list.slice(0, ui.mhgAll ? list.length : 12).map((p) => {
           const sentence = S.mhgSentence(p, gen.givens);
@@ -618,7 +619,7 @@
       list.length > 12 ? h('div', { class: 'toolbar' }, h('button', { type: 'button', class: 'small', onclick: () => { ui.mhgAll = !ui.mhgAll; rerender(); } },
         ui.mhgAll ? 'Show the top 12' : `Show all ${list.length}`)) : null,
       gen.truncated ? h('p', { class: 'small muted' }, `Showing the first ${S.MHG_LIMIT} of ${gen.total}. Fewer alternatives make a more useful list.`) : null,
-      h('p', { class: 'small muted' }, 'Keep low-scoring permutations around: new information can change their credibility.'));
+      h('p', { class: 'small muted' }, 'Keep low-scoring permutations around: new information can change their credibility.')].filter(Boolean));
     }
     return card;
   }
