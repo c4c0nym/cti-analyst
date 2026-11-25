@@ -5,7 +5,7 @@
 <h1 align="center">Systematic Analyst Tool (SAT)</h1>
 
 <p align="center">
-  Structured analytic techniques for cyber threat intelligence, in one offline web page.
+  Structured analytic techniques for cyber threat intelligence, in an offline web page.
 </p>
 
 <p align="center">
