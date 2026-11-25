@@ -2,14 +2,14 @@
   <img src="docs/icon.svg" alt="" width="72">
 </p>
 
-<h1 align="center">Systematic analyst</h1>
+<h1 align="center">Systematic Analyst Tool (SAT)</h1>
 
 <p align="center">
   Structured analytic techniques for cyber threat intelligence, in one offline web page.
 </p>
 
 <p align="center">
-  <a href="https://c4c0nym.github.io/cti-analyst/"><strong>▶ Live demo</strong></a>
+  <a href="https://c4c0nym.github.io/systematic-analyst-tool/"><strong>▶ Live demo</strong></a>
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@ explanation, read evidence that fits several hypotheses as proof of their own, a
 planted artefact or the actor-run "leak" that was meant to mislead them. Structured analytic
 techniques make that reasoning explicit and open to challenge.
 
-**CTI Analyst** puts the techniques from the US Government's *Tradecraft Primer* and Beebe &
+**SAT** puts the techniques from the US Government's *Tradecraft Primer* and Beebe &
 Pherson's *Cases in Intelligence Analysis* into one workspace. Each technique feeds the next:
 unsupported assumptions, critical drivers and evidence the conclusion depends on all end up as
 key uncertainties with a collection requirement.
@@ -74,11 +74,11 @@ Light and dark themes follow your system setting; the button at the top right sw
 
 ## Quick start
 
-Try it at **[c4c0nym.github.io/cti-analyst](https://c4c0nym.github.io/cti-analyst/)**, or run it
+Try it at **[c4c0nym.github.io/systematic-analyst-tool](https://c4c0nym.github.io/systematic-analyst-tool/)**, or run it
 locally. There is nothing to install or build.
 
 ```bash
-git clone https://github.com/c4c0nym/cti-analyst.git
+git clone https://github.com/c4c0nym/systematic-analyst-tool.git
 ```
 
 Open `index.html` in a browser and click **Load the worked example**. Your project is kept in the

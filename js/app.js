@@ -1,9 +1,10 @@
-/* CTI Analyst UI. Plain DOM, no dependencies; all user text is inserted as text, never as HTML. */
+/* Systematic Analyst Tool (SAT) UI. Plain DOM, no dependencies; all user text is inserted as text, never as HTML. */
 (function () {
   'use strict';
 
   const S = window.SAT;
-  const STORE_KEY = 'cti-analyst:project';
+  const STORE_KEY = 'sat:project';
+  const LEGACY_STORE_KEY = 'cti-analyst:project';   // pre-rename key: still read so saved projects survive
   const MAX_IMPORT = 5 * 1024 * 1024;
 
   const ui = { achRows: 'entry', achCols: 'entry', indSort: false, mhgAll: false };
@@ -116,7 +117,7 @@
   // -------------------------------------------------------------------------------------------
   function loadStored() {
     try {
-      const raw = localStorage.getItem(STORE_KEY);
+      const raw = localStorage.getItem(STORE_KEY) || localStorage.getItem(LEGACY_STORE_KEY);
       if (raw) return S.normalize(JSON.parse(raw));
     } catch (err) {
       console.warn('Could not read the saved project', err);
@@ -217,7 +218,7 @@
     const tlp = $('#tlp-badge');
     tlp.textContent = state.meta.tlp;
     tlp.dataset.tlp = state.meta.tlp;
-    document.title = `${state.meta.title ? `${state.meta.title} · ` : ''}CTI Analyst`;
+    document.title = `${state.meta.title ? `${state.meta.title} · ` : ''}Systematic Analyst Tool (SAT)`;
   }
 
   function rerender() {
@@ -1366,7 +1367,7 @@
       if (typeof data !== 'object' || data === null || Array.isArray(data)) throw new Error('not a project');
       replaceState(data);
     } catch (err) {
-      window.alert(`Could not open ${file.name}: it is not a CTI Analyst project file.`);
+      window.alert(`Could not open ${file.name}: it is not a Systematic Analyst Tool project file.`);
     }
   });
 
@@ -1375,7 +1376,7 @@
   });
 
   // Theme toggle: an explicit choice is remembered; without one the system setting applies.
-  const THEME_KEY = 'cti-analyst:theme';
+  const THEME_KEY = 'sat:theme';
   const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
   const effectiveTheme = () => document.documentElement.dataset.theme || (darkQuery.matches ? 'dark' : 'light');
   const ICONS = {
@@ -1399,6 +1400,6 @@
   darkQuery.addEventListener('change', paintThemeButton);
   paintThemeButton();
 
-  $('#save-state').textContent = localStorage.getItem(STORE_KEY) ? 'Saved in this browser' : '';
+  $('#save-state').textContent = (localStorage.getItem(STORE_KEY) || localStorage.getItem(LEGACY_STORE_KEY)) ? 'Saved in this browser' : '';
   rerender();
 }());

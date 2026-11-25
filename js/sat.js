@@ -1,5 +1,5 @@
 /*
- * cti-analyst core: the structured analytic techniques as pure functions (no DOM).
+ * Systematic Analyst Tool (SAT) core: the structured analytic techniques as pure functions (no DOM).
  *
  * Methods follow the CIA "Tradecraft Primer: Structured Analytic Techniques for Improving
  * Intelligence Analysis" (2009) and Beebe & Pherson, "Cases in Intelligence Analysis" (2nd ed.).
